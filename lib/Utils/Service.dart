@@ -6,7 +6,7 @@ class ConfigService {
   Future<String> fetchUrl() async {
     final doc = await _firestore.collection('config').doc('settings').get();
     if (doc.exists) {
-      return doc.data()?['url'] ?? 'http://localhost:5400';
+      return doc.data()?['url'] ?? 'http://localhost:3040';
     } else {
       throw Exception("Document not found");
     }

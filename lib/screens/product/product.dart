@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:admin_panel/myDio.dart';
 import 'package:admin_panel/models/product.dart';
-import 'package:admin_panel/models/category.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 import '../../Utils/Constants.dart';
 
 class ProductScreen extends StatefulWidget {
-  final String categoryId; // Category ID for context
+  final String categoryId;
 
   const ProductScreen({Key? key, required this.categoryId}) : super(key: key);
 
@@ -43,162 +44,150 @@ class _ProductScreenState extends State<ProductScreen> {
     }
   }
 
+  Future<List<File>> pickImagesForWeb() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+    );
+    if (result != null) {
+      return result.files
+          .take(5)
+          .map((pickedFile) => File(pickedFile.path!))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<String> uploadImage(File image) async {
+    try {
+      final response = await MyDio().post('${Server.url}/api/upload', data: {
+        'file': image, 
+      });
+      return response?.data['url']; 
+    } catch (e) {
+      print(e);
+      return '';
+    }
+  }
+
   Future<void> _addProduct() async {
     final nameController = TextEditingController();
     final wholesalePriceController = TextEditingController();
     final retailPriceController = TextEditingController();
+    List<File> selectedImages = [];
+    List<String> uploadedImageUrls = [];
 
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Add Product'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Product Name'),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Add Product'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Product Name'),
+                    ),
+                    TextField(
+                      controller: wholesalePriceController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Wholesale Price'),
+                    ),
+                    TextField(
+                      controller: retailPriceController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Retail Price'),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final images = await pickImagesForWeb();
+                        setState(() {
+                          selectedImages.addAll(images);
+                        });
+                      },
+                      child: const Text('Pick Images'),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: selectedImages.map((image) {
+                        return Stack(
+                          alignment: Alignment.topRight,
+                          children: [
+                            Image.file(
+                              image,
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel, color: Colors.red),
+                              onPressed: () {
+                                setState(() {
+                                  selectedImages.remove(image);
+                                });
+                              },
+                            )
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                   
+                  ],
+                ),
               ),
-              TextField(
-                controller: wholesalePriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Wholesale Price'),
-              ),
-              TextField(
-                controller: retailPriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Retail Price'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final name = nameController.text;
-                final wholesalePrice =
-                    double.tryParse(wholesalePriceController.text) ?? 0;
-                final retailPrice =
-                    double.tryParse(retailPriceController.text) ?? 0;
-                if (name.isNotEmpty) {
-                  try {
-                    await MyDio().post('${Server.url}/api/products', data: {
-                      'name': name,
-                      'category': widget.categoryId,
-                      'variants': [
-                        {
-                          'wholesalePrice': wholesalePrice,
-                          'retailPrice': retailPrice,
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                     if (selectedImages.isNotEmpty) {
+                          for (var image in selectedImages) {
+                            String uploadedUrl = await uploadImage(image);
+                            if (uploadedUrl.isNotEmpty) {
+                              uploadedImageUrls.add(uploadedUrl);
+                            }
+                          }
                         }
-                      ],
-                      'images': [], // Add images if necessary
-                    });
-                    fetchProducts(); // Refresh products
+                    final name = nameController.text;
+                    final wholesalePrice = double.tryParse(wholesalePriceController.text) ?? 0;
+                    final retailPrice = double.tryParse(retailPriceController.text) ?? 0;
+                    if (name.isNotEmpty) {
+                      try {
+                        await MyDio().post('${Server.url}/api/products', data: {
+                          'name': name,
+                          'category': widget.categoryId,
+                          'variants': [
+                            {
+                              'wholesalePrice': wholesalePrice,
+                              'retailPrice': retailPrice,
+                            }
+                          ],
+                          'images': uploadedImageUrls, 
+                        });
+                        fetchProducts(); 
+                        Navigator.of(context).pop();
+                      } catch (e) {
+                        print(e);
+                      }
+                    }
+                  },
+                  child: const Text('Add Product'),
+                ),
+                TextButton(
+                  onPressed: () {
                     Navigator.of(context).pop();
-                  } catch (e) {
-                    print(e);
-                  }
-                }
-              },
-              child: const Text('Add'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
+                  },
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-  }
-
-  Future<void> _editProduct(Product product) async {
-    final nameController = TextEditingController(text: product.name);
-    final wholesalePriceController = TextEditingController(
-        text: product.variants.isNotEmpty
-            ? product.variants[0].wholesalePrice.toString()
-            : '');
-    final retailPriceController = TextEditingController(
-        text: product.variants.isNotEmpty
-            ? product.variants[0].retailPrice.toString()
-            : '');
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Product'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Product Name'),
-              ),
-              TextField(
-                controller: wholesalePriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Wholesale Price'),
-              ),
-              TextField(
-                controller: retailPriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Retail Price'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final name = nameController.text;
-                final wholesalePrice =
-                    double.tryParse(wholesalePriceController.text) ?? 0;
-                final retailPrice =
-                    double.tryParse(retailPriceController.text) ?? 0;
-                if (name.isNotEmpty) {
-                  try {
-                    await MyDio()
-                        .put('${Server.url}/api/products/${product.id}', data: {
-                      'name': name,
-                      'category': product.category,
-                      'variants': [
-                        {
-                          'wholesalePrice': wholesalePrice,
-                          'retailPrice': retailPrice,
-                        }
-                      ],
-                      'images': product.images, // Add images if necessary
-                    });
-                    fetchProducts(); // Refresh products
-                    Navigator.of(context).pop();
-                  } catch (e) {
-                    print(e);
-                  }
-                }
-              },
-              child: const Text('Update'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _deleteProduct(String productId) async {
-    try {
-      await MyDio().delete('${Server.url}/api/products/$productId');
-      fetchProducts(); // Refresh products
-    } catch (e) {
-      print(e);
-    }
   }
 
   @override
@@ -225,17 +214,18 @@ class _ProductScreenState extends State<ProductScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit),
-                              onPressed: () => _editProduct(product),
+                              onPressed: () {
+                                // Edit product functionality
+                              },
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete),
-                              onPressed: () => _deleteProduct(product.id),
+                              onPressed: () {
+                                // Delete product functionality
+                              },
                             ),
                           ],
                         ),
-                        onTap: () {
-                          // Optionally, navigate to a detailed product view
-                        },
                       ),
                     );
                   },
@@ -246,4 +236,4 @@ class _ProductScreenState extends State<ProductScreen> {
       ),
     );
   }
-}
+} 

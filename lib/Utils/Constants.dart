@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
-import 'Service.dart';
 
 class Server {
   static String? url;
   static const firebaseNotification = 'https://fcm.googleapis.com/fcm/send';
 
   static Future<void> initialize() async {
-    final configService = ConfigService();
+
     try {
-      url = await configService.fetchUrl();
+      url = "http://duckindia.sparkspite.com";
     } catch (e) {
       print("Error initializing server URL: $e");
     }

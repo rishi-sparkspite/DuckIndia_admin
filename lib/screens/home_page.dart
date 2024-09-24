@@ -1,3 +1,4 @@
+import 'package:admin_panel/screens/Inquiries.dart';
 import 'package:admin_panel/screens/product/product.dart';
 import 'package:flutter/material.dart';
 import '../Utils/Constants.dart';
@@ -21,7 +22,7 @@ class _MyHomePageState extends State<MyHomePage> {
     //   'icon': Icons.production_quantity_limits
     // },
     {'type': "banners", "name": "Banners", 'icon': Icons.image},
-    {'type': "logout", "name": "Logout", 'icon': Icons.exit_to_app},
+    {'type': "inquiry", "name": "Inquiries", 'icon': Icons.question_answer},
   ];
 
   int selectedIndex = 0;
@@ -129,9 +130,9 @@ class _PageNavigatorState extends State<PageNavigator> {
       case 1:
         pageWidget = const BannerScreen();
         break;
-      // case 2:
-      //   pageWidget = const BannerScreen();
-      //   break;
+      case 2:
+        pageWidget = const InquiryScreen();
+        break;
       case 3:
         // Handle logout here if needed
         pageWidget = Container();
